@@ -21,7 +21,6 @@ object Main extends App {
 
   lazy val keyRing = KeyRing.create
   val interpret = new LocalInterpreter(keyRing)
-  def isSmaller(a: EncInt, b: EncInt): Boolean = interpret(a < b)
 
   val actorSystem: ActorSystem = ActorSystem()
 
@@ -42,7 +41,7 @@ object Main extends App {
       stream[EncInt]("B"),
       slidingWindow(2.seconds),
       slidingWindow(2.seconds))
-    .where(isSmaller(_, _))
+    .where((a, b) => interpret(a < b))
     .dropElem1(
       latency < timespan(1.milliseconds) otherwise { (nodeData) => println(s"PROBLEM:\tEvents reach node `${nodeData.name}` too slowly!") })
     .selfJoin(
