@@ -22,47 +22,105 @@ object Main extends App {
   lazy val keyRing = KeyRing.create
   val interpret = new LocalInterpreter(keyRing)
 
-  val actorSystem: ActorSystem = ActorSystem()
+  // --- A < B
 
-  val publisherA: ActorRef = actorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id) ) ))),             "A")
-  val publisherB: ActorRef = actorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id * 2) ) ))),         "B")
-  val publisherC: ActorRef = actorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id * 3) ) ))),     "C")
-  val publisherD: ActorRef = actorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encryptStrOpe(keyRing)(s"String($id)") ))), "D")
-
-  val publishers: Map[String, ActorRef] = Map(
-    "A" -> publisherA,
-    "B" -> publisherB,
-    "C" -> publisherC,
-    "D" -> publisherD)
-
-  val query1: Query3[Either[EncInt, EncString], Either[EncInt, X], Either[EncInt, X]] =
+  val lessQuery: Query2[EncInt, EncInt] = 
     stream[EncInt]("A")
-    .join(
-      stream[EncInt]("B"),
-      slidingWindow(2.seconds),
-      slidingWindow(2.seconds))
+    .join(stream[EncInt]("B"), slidingWindow(2.seconds), slidingWindow(2.seconds))
     .where((a, b) => interpret(a < b))
-    .dropElem1(
-      latency < timespan(1.milliseconds) otherwise { (nodeData) => println(s"PROBLEM:\tEvents reach node `${nodeData.name}` too slowly!") })
-    .selfJoin(
-      tumblingWindow(1.instances),
-      tumblingWindow(1.instances),
-      frequency > ratio( 3.instances,  5.seconds) otherwise { (nodeData) => println(s"PROBLEM:\tNode `${nodeData.name}` emits too few events!") },
-      frequency < ratio(12.instances, 15.seconds) otherwise { (nodeData) => println(s"PROBLEM:\tNode `${nodeData.name}` emits too many events!") })
-    .and(stream[EncInt]("C"))
-    .or(stream[EncString]("D"))
 
-  val graph: ActorRef = GraphFactory.create(
-    actorSystem =             actorSystem,
-    query =                   query1,
-    publishers =              publishers,
-    frequencyMonitorFactory = AverageFrequencyMonitorFactory  (interval = 15, logging = true),
-    latencyMonitorFactory =   PathLatencyMonitorFactory       (interval =  5, logging = true),
-    createdCallback =         () => println("STATUS:\t\tGraph has been created."))(
-    eventCallback =           {
-      case (Left(i1), Left(i2), Left(f)) => println(s"COMPLEX EVENT:\tEvent3($i1,$i2,$f)")
-      case (Right(s), _, _)              => println(s"COMPLEX EVENT:\tEvent1($s)")
+  val lessActorSystem: ActorSystem = ActorSystem()
+  val lessPublishers: Map[String, ActorRef] = Map(
+    "A" -> lessActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id) ) ))), "A"),
+    "B" -> lessActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id * 2) ) ))), "B")
+  )
+  val lessGraph: ActorRef = GraphFactory.create(
+    actorSystem = lessActorSystem, query = lessQuery, publishers = lessPublishers,
+    frequencyMonitorFactory = AverageFrequencyMonitorFactory (interval = 15, logging = true),
+    latencyMonitorFactory = PathLatencyMonitorFactory (interval =  5, logging = true),
+    createdCallback = () => println("STATUS:\tLess graph has been created."))(
+    eventCallback = {
+      case (i1, i2) => {
+        val decI1 = Common.decrypt(keyRing.priv)(i1)
+        val decI2 = Common.decrypt(keyRing.priv)(i2)
+        println(s"A < B:\t ( $decI1, $decI2 )")
+      }
       case _                             =>
     })
+
+  // --- A < B
+
+  // --- Sum is even
+
+  val sumEvenQuery: Query2[EncInt, EncInt] = 
+    stream[EncInt]("C")
+    .join(stream[EncInt]("D"), slidingWindow(2.seconds), slidingWindow(2.seconds))
+    .where(
+      (a, b) => interpret(
+        isEven(
+          interpret(a + b)
+        )
+      )
+    )
+
+  val sumEvenActorSystem: ActorSystem = ActorSystem()
+  val sumEvenPublishers: Map[String, ActorRef] = Map(
+    "C" -> sumEvenActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id) ) ))), "C"),
+    "D" -> sumEvenActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encrypt(Comparable, keyRing)( BigInt(id * 2) ) ))), "D")
+  )
+  val sumEvenGraph: ActorRef = GraphFactory.create(
+    actorSystem = sumEvenActorSystem, query = sumEvenQuery, publishers = sumEvenPublishers,
+    frequencyMonitorFactory = AverageFrequencyMonitorFactory (interval = 15, logging = true),
+    latencyMonitorFactory = PathLatencyMonitorFactory (interval =  5, logging = true),
+    createdCallback = () => println("STATUS:\tSum even graph has been created."))(
+    eventCallback = {
+      case (i1, i2) => {
+        val decI1 = Common.decrypt(keyRing.priv)(i1)
+        val decI2 = Common.decrypt(keyRing.priv)(i2)
+        println(s"C + D is even:\t ( $decI1, $decI2 )")
+      }
+      case _                             =>
+    })
+
+  // --- Sum is even
+
+  // --- Concat strings
+
+  val concatQuery: Query2[EncString, EncString] = 
+    stream[EncString]("E")
+    .join(stream[EncString]("F"), slidingWindow(2.seconds), slidingWindow(2.seconds))
+    .where(
+      (a, b) => interpret(
+        equalStr(
+          interpret(
+            concatStr(a, b)
+          ),
+          interpret(
+            concatStr(b, a)
+          )
+        )
+      )
+    )
+
+  val concatActorSystem: ActorSystem = ActorSystem()
+  val concatPublishers: Map[String, ActorRef] = Map(
+    "E" -> concatActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encryptStrOpe(keyRing)(s"$id") ))), "E"),
+    "F" -> concatActorSystem.actorOf(Props(RandomPublisher(id => Event1( Common.encryptStrOpe(keyRing)(s"$id") ))), "F")
+  )
+  val concatGraph: ActorRef = GraphFactory.create(
+    actorSystem = concatActorSystem, query = concatQuery, publishers = concatPublishers,
+    frequencyMonitorFactory = AverageFrequencyMonitorFactory (interval = 15, logging = true),
+    latencyMonitorFactory = PathLatencyMonitorFactory (interval =  5, logging = true),
+    createdCallback = () => println("STATUS:\tString graph has been created."))(
+    eventCallback = {
+      case (s1, s2) => {
+        val decS1 = Common.decryptStr(keyRing.priv)(s1)
+        val decS2 = Common.decryptStr(keyRing.priv)(s2)
+        println(s"EF is equal to FE:\t ( $decS1$decS2 == $decS2$decS1 )")
+      }
+      case _                             =>
+    })
+
+  // --- Concat strings
 
 }
