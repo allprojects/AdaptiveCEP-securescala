@@ -1,10 +1,10 @@
 ## ImplTest
 
-ImplTest is a test project combining [AdaptiveCEP](https://github.com/pweisenburger/AdaptiveCEP) and [SecureScala](https://github.com/azanov/securescala)
+ImplTest is a test project combining [AdaptiveCEP](http://github.com/pweisenburger/AdaptiveCEP) and [SecureScala](http://github.com/allprojects/securescala)
 
 ## Building
 
-- Build and install https://github.com/azanov/libope
+- Build and install http://github.com/allprojects/securescala/tree/libope
 - Run `sbt run` to start a simulation
 
 ## Updating dependencies

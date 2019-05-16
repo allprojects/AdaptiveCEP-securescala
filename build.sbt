@@ -7,7 +7,7 @@ scalaVersion := "2.12.1"
 Compile/mainClass := Some("impltest.Main")
 
 lazy val adaptiveCEPProject = RootProject(uri("https://github.com/pweisenburger/AdaptiveCEP.git"))
-lazy val secureScalaProject = RootProject(uri("https://github.com/azanov/securescala.git"))
+lazy val secureScalaProject = RootProject(uri("https://github.com/allprojects/securescala.git"))
 lazy val root = (project in file(".")).dependsOn(adaptiveCEPProject).dependsOn(secureScalaProject)
 
 libraryDependencies ++= Seq(
